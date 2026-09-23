@@ -1,0 +1,14 @@
+{
+  "name": "safesight-ai",
+  "version": "1.0.0",
+  "description": "SafeSight AI – Predict the Danger Before the Crash",
+  "scripts": {
+    "dev:backend": "python -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000 --reload",
+    "dev:frontend": "cd frontend && npm run dev",
+    "generate-videos": "python backend/app/demo/generator.py",
+    "test:backend": "python -m pytest backend/tests -v"
+  },
+  "keywords": ["ai", "yolo", "road-safety", "collision-prediction", "fastapi", "react"],
+  "author": "SafeSight AI Team",
+  "license": "MIT"
+}
