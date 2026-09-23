@@ -602,3 +602,9 @@ async def websocket_live_webcam(websocket: WebSocket):
         logger.info("Live webcam WebSocket disconnected")
     except Exception as e:
         logger.error(f"Webcam WebSocket error: {e}")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port)
