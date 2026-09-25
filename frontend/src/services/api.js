@@ -4,6 +4,18 @@
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
+/** Fetch with a timeout (default 30s). Throws on timeout or network error. */
+async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function getHealth() {
   const res = await fetch(`${API_BASE}/api/health`);
   return res.json();
@@ -15,7 +27,11 @@ export async function getScenarios() {
 }
 
 export async function getScenarioTelemetry(scenarioId) {
-  const res = await fetch(`${API_BASE}/api/scenarios/${scenarioId}/telemetry`);
+  const res = await fetchWithTimeout(
+    `${API_BASE}/api/scenarios/${scenarioId}/telemetry`,
+    {},
+    45000  // 45s max – enough for 100-frame cloud inference
+  );
   if (!res.ok) throw new Error('Failed to fetch scenario telemetry');
   return res.json();
 }

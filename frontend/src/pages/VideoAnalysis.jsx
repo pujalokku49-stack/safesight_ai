@@ -49,23 +49,36 @@ export default function VideoAnalysis({ setActiveTab, setSelectedVideoForReport,
     const file = e.target.files[0];
     if (!file) return;
 
+    // Immediately preview the file locally before upload finishes
+    const localUrl = URL.createObjectURL(file);
+    setActiveVideo({
+      id: '__preview__',
+      filename: file.name,
+      url: localUrl,
+      type: 'upload',
+      isLocalPreview: true,
+    });
+
     setIsUploading(true);
     setUploadError(null);
 
     try {
       const res = await uploadVideo(file);
+      // Use replaceAll so "my.video.mp4" → "my_video_mp4" (not "my_video.mp4")
+      const videoId = res.id || res.filename.replaceAll('.', '_');
       await loadVideosList();
       setActiveVideo({
-        id: res.filename.replace('.', '_'),
+        id: videoId,
         filename: res.filename,
         url: res.url,
-        type: 'upload'
+        type: 'upload',
       });
       if (setSelectedVideoForReport) {
-        setSelectedVideoForReport(res.filename.replace('.', '_'));
+        setSelectedVideoForReport(videoId);
       }
     } catch (err) {
-      setUploadError(err.message || 'Failed to upload video');
+      setUploadError(err.message || 'Failed to upload video. Please try again.');
+      // Keep local preview so user can see the video they tried to upload
     } finally {
       setIsUploading(false);
     }
@@ -262,34 +275,49 @@ export default function VideoAnalysis({ setActiveTab, setSelectedVideoForReport,
                 <div className="rounded-2xl overflow-hidden border border-cyan-500/20 bg-dark-850 p-2">
                   <div className="aspect-video bg-black rounded-xl overflow-hidden relative">
                     <video
-                      src={getVideoUrl(activeVideo.url)}
+                      key={activeVideo.url}
+                      src={activeVideo.isLocalPreview ? activeVideo.url : getVideoUrl(activeVideo.url)}
                       controls
+                      autoPlay
+                      muted
+                      playsInline
+                      loop
                       className="w-full h-full object-contain"
                     />
+                    {/* Uploading overlay */}
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-3">
+                        <div className="w-12 h-12 border-4 border-cyan-500/30 border-t-cyan-400 rounded-full animate-spin" />
+                        <p className="text-cyan-300 font-mono text-xs font-bold tracking-wider">UPLOADING & INDEXING...</p>
+                        <p className="text-slate-400 font-mono text-[10px]">Running YOLOv8 inference on your video</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-dark-850 border border-slate-800 flex items-center justify-between">
-                  <div>
+                <div className="p-4 rounded-xl bg-dark-850 border border-slate-800 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
                     <h4 className="text-xs font-mono font-bold text-white uppercase">
-                      READY FOR REAL-TIME ANALYSIS PIPELINE
+                      {isUploading ? '⏳ UPLOADING & BUILDING AI TELEMETRY...' : '✅ READY FOR REAL-TIME ANALYSIS'}
                     </h4>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      Selected: <strong className="text-cyan-400">{activeVideo.filename}</strong>
+                    <p className="text-xs text-slate-400 mt-0.5 truncate">
+                      File: <strong className="text-cyan-400">{activeVideo.filename}</strong>
+                      {activeVideo.isLocalPreview && <span className="ml-2 text-amber-400">(local preview)</span>}
                     </p>
                   </div>
                   <button
+                    disabled={isUploading || activeVideo.isLocalPreview}
                     onClick={() => {
-                      if (activeVideo) {
+                      if (activeVideo && !activeVideo.isLocalPreview) {
                         const vidId = activeVideo.id || activeVideo.filename;
                         if (setActiveVideoId) setActiveVideoId(vidId);
                         if (setSelectedVideoForReport) setSelectedVideoForReport(vidId);
                       }
                       setActiveTab('dashboard');
                     }}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white font-mono text-xs font-bold shadow-md shadow-cyan-600/30"
+                    className="flex-shrink-0 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 text-white font-mono text-xs font-bold shadow-md shadow-cyan-600/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                   >
-                    RUN LIVE PIPELINE →
+                    {isUploading ? 'WAIT...' : 'RUN LIVE PIPELINE →'}
                   </button>
                 </div>
               </div>

@@ -129,6 +129,22 @@ export default function Dashboard({
     const file = e.target.files[0];
     if (!file) return;
 
+    // Immediately show the video on the player from local blob
+    const localUrl = URL.createObjectURL(file);
+    const previewScenario = {
+      id: '__uploading__',
+      name: file.name,
+      tag: 'Custom Traffic Video',
+      category: 'Uploading...',
+      description: 'Uploading and running YOLOv8 AI inference pipeline...',
+      key_danger: 'Processing...',
+      expected_peak_risk: 'Pending',
+      video_filename: file.name,
+      video_url: localUrl,
+    };
+    setSelectedScenario(previewScenario);
+    setSourceTab('uploaded');
+
     setIsUploading(true);
     setUploadError(null);
 
@@ -138,7 +154,8 @@ export default function Dashboard({
       const uploads = (vids || []).filter((v) => v.type === 'upload');
       setUploadedVideos(uploads);
 
-      const targetId = res.id || res.filename.replace('.', '_');
+      // Use the server-provided ID (already correctly formatted with replaceAll)
+      const targetId = res.id || res.filename.replaceAll('.', '_');
       const newScenario = {
         id: targetId,
         name: res.filename,
@@ -152,7 +169,6 @@ export default function Dashboard({
         metadata: res.metadata
       };
 
-      setSourceTab('uploaded');
       await handleSelectScenario(newScenario);
     } catch (err) {
       setUploadError(err.message || 'Failed to upload video');
@@ -259,10 +275,19 @@ export default function Dashboard({
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-mono font-bold text-xs tracking-wider uppercase shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all"
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-mono font-bold text-xs tracking-wider uppercase shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all"
             >
-              <Upload className="w-4 h-4" />
-              <span>{isUploading ? 'UPLOADING VIDEO...' : 'UPLOAD YOUR TRAFFIC VIDEO'}</span>
+              {isUploading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>AI IS ANALYZING YOUR VIDEO...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  <span>UPLOAD YOUR TRAFFIC VIDEO</span>
+                </>
+              )}
             </button>
 
             <button

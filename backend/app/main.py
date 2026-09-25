@@ -7,6 +7,7 @@ webcam stream processing, telemetry distribution, and incident reporting.
 import os
 import cv2
 import json
+import shutil
 import asyncio
 import logging
 from typing import Optional, List
