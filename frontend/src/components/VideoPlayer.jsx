@@ -34,6 +34,20 @@ export default function VideoPlayer({
     }
   }, [currentFrameIndex]);
 
+  // Sync and auto-reload whenever videoUrl changes
+  useEffect(() => {
+    setVideoHasError(false);
+    setCurrentTime(0);
+    setInternalFrameIdx(0);
+    setIsPlaying(true);
+    if (videoRef.current) {
+      try {
+        videoRef.current.load();
+        videoRef.current.play().catch(() => {});
+      } catch (e) {}
+    }
+  }, [videoUrl]);
+
   // Autonomous animation clock: guarantees continuous playback regardless of browser video policies
   useEffect(() => {
     let timerId = null;
@@ -404,8 +418,8 @@ export default function VideoPlayer({
           className="w-full h-full object-contain"
           playsInline
           muted
+          autoPlay
           loop
-          crossOrigin="anonymous"
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={() => {
             setVideoHasError(false);

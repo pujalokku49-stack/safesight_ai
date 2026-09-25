@@ -138,8 +138,14 @@ def get_scenarios():
 
 TELEMETRY_CACHE: dict = {}
 
-def analyze_video_file_pipeline(video_path: str, max_frames: int = 250) -> List[dict]:
-    """Run YOLOv8 + Tracker + Risk Engine on a video file to generate full telemetry."""
+def analyze_video_file_pipeline(video_path: str, max_frames: int = 100) -> List[dict]:
+    """
+    High-speed YOLOv8 + Tracker + Kinematics Risk Engine pipeline.
+    Optimized for cloud environments (Render/CPU):
+    - Uses 384px resolution for fast inference.
+    - Samples detections every 2 frames while keeping tracker updated on all frames.
+    - Caps to max_frames (100 frames / ~4s) to ensure response returns in 2-3 seconds.
+    """
     if not os.path.exists(video_path):
         return []
     cap = cv2.VideoCapture(video_path)
@@ -155,26 +161,36 @@ def analyze_video_file_pipeline(video_path: str, max_frames: int = 250) -> List[
     results = []
     
     f = 0
+    cached_dets = []
+    inf_w = 384
+    
     while f < max_frames:
         ret, frame = cap.read()
         if not ret:
             break
         ts = f / fps
         h, w = frame.shape[:2]
-        inf_w = 640
-        scale = inf_w / float(w) if w > inf_w else 1.0
-        if scale < 1.0:
-            inf_frame = cv2.resize(frame, (inf_w, int(h * scale)))
-        else:
-            inf_frame = frame
-            
-        dets = det_inst.detect(inf_frame)
-        if scale < 1.0:
-            inv_scale = 1.0 / scale
-            for d in dets:
-                d["bbox"] = [c * inv_scale for c in d["bbox"]]
+        
+        # Run YOLO detection on keyframes (every 2nd frame)
+        if f % 2 == 0 or not cached_dets:
+            scale = inf_w / float(w) if w > inf_w else 1.0
+            if scale < 1.0:
+                inf_frame = cv2.resize(frame, (inf_w, int(h * scale)))
+            else:
+                inf_frame = frame
                 
-        tracked = local_tracker.update(dets, dt=1.0 / fps)
+            raw_dets = det_inst.detect(inf_frame)
+            if scale < 1.0:
+                inv_scale = 1.0 / scale
+                cached_dets = []
+                for d in raw_dets:
+                    d_copy = d.copy()
+                    d_copy["bbox"] = [c * inv_scale for c in d["bbox"]]
+                    cached_dets.append(d_copy)
+            else:
+                cached_dets = raw_dets
+                
+        tracked = local_tracker.update(cached_dets, dt=1.0 / fps)
         analysis = local_engine.analyze_frame(f, ts, tracked, video_width=w, video_height=h)
         results.append(analysis.model_dump())
         f += 1
@@ -190,11 +206,16 @@ def get_scenario_telemetry(scenario_id: str):
     if scenario_id in TELEMETRY_CACHE:
         return TELEMETRY_CACHE[scenario_id]
 
-    # Check demo scenarios
+    # Check demo scenarios with flexible ID matching
     for sc in DEMO_SCENARIOS_META:
-        if sc["id"] == scenario_id:
-            telem = generate_scenario_telemetry(scenario_id)
+        clean_sc = sc["id"].replace(".", "_")
+        filename = sc.get("video_filename", "")
+        filename_id = filename.replace(".", "_")
+        if scenario_id in [sc["id"], clean_sc, filename, filename_id]:
+            telem = generate_scenario_telemetry(sc["id"])
             TELEMETRY_CACHE[scenario_id] = telem
+            TELEMETRY_CACHE[clean_sc] = telem
+            TELEMETRY_CACHE[sc["id"]] = telem
             return telem
 
     # Check uploaded videos with flexible ID matching
